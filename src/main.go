@@ -3,8 +3,12 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"github.com/pkg/errors"
+	"github.com/vishvananda/netlink"
 	"io/ioutil"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -40,18 +44,17 @@ func run() {
 	if err := SetupBridge("gtongy-bridge"); err != nil {
 		return
 	}
-	deleteNetwork, err := SetupNetwork("gtongy-bridge")
+	_, err := SetupNetwork("gtongy-bridge")
 	if err != nil {
 		return
 	}
-	defer deleteNetwork()
 	must(cmd.Run())
 }
 
 func child() {
 	fmt.Printf("Running %v \n", os.Args[2:])
 
-	// cg()
+	cg()
 
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
 	cmd.Stdin = os.Stdin
