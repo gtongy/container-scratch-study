@@ -4,7 +4,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/gtongy/container-scratch-study/src/network"
 	"io/ioutil"
 	"os"
 	"os/exec"
