@@ -14,7 +14,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
-	"errors"
 	"golang.org/x/sys/unix"
 	"math/rand"
 )
