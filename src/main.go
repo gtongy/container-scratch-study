@@ -4,6 +4,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/gtongy/container-scratch-study/src/network"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -36,10 +37,10 @@ func run() {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
 	}
-	if err := SetupBridge("gtongy-bridge"); err != nil {
+	if err := network.SetupBridge("gtongy-bridge"); err != nil {
 		return
 	}
-	deleteNetwork, err := SetupNetwork("gtongy-bridge")
+	deleteNetwork, err := network.SetupNetwork("gtongy-bridge")
 	if err != nil {
 		return
 	}
