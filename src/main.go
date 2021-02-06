@@ -210,7 +210,7 @@ func MountNetworkNamespace(nsTarget string) (error, error) {
 	// TODO: mount file
 	if err := unix.Setns(int(file.Fd()), syscall.CLONE_NEWNET); err != nil {
 		// TODO: return unmount
-		return nil, error.Wrap(err, "setns syscall failed")
+		return nil, errors.Wrap(err, "setns syscall failed")
 	}
 	// TODO: return unmount
 	return nil, err
