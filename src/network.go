@@ -3,7 +3,9 @@
 package main
 
 import (
+	"crypto/sha256"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"syscall"
@@ -13,10 +15,13 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+var (
+	digest = randomHash()
+)
+
 type Unsetter func() error
 
 func SetupNetwork(bridge string) (error, error){
-	digest := "digest"
 	nsMountTarget := filepath.Join("/gtongy/netns", digest)
 	vethName := fmt.Sprintf("veth%.7s", digest)
 	peerName := fmt.Sprintf("P%s", vethName)
@@ -39,7 +44,25 @@ func SetupNetwork(bridge string) (error, error){
 		return unmount, err
 	}
 	defer unset()
-	return nil, nil
+
+	ctrEthName := "gtongy0"
+	ctrEthIPAddr := GetIP()
+	if err := LinkRename(peerName, ctrEthName); err != nil {
+		return unmount, err
+	}
+	if err := LinkAddAddr(ctrEthName, ctrEthIPAddr); err != nil {
+		return unmount, err
+	}
+	if err := LinkSetup(ctrEthName); err != nil {
+		return unmount, err
+	}
+	if err := LinkAddGateway(ctrEthName, "172.30.0.1"); err != nil {
+		return unmount, err
+	}
+	if err := LinkSetup("lo"); err != nil {
+		return unmount, err
+	}
+	return unmount, nil
 }
 
 func SetupVirtualEthernet(name, peer string) error {
@@ -126,4 +149,59 @@ func SetNetNSByFile(filename string) (Unsetter, error) {
 		return unsetFunc, errors.Wrap(err, "unset syscall failed")
 	}
 	return unsetFunc, err
+}
+
+func GetIP() string {
+	a, _ := strconv.ParseInt(digest[:2], 10, 64)
+	b, _ := strconv.ParseInt(digest[62:], 10, 64)
+	return fmt.Sprintf("172.30.%d.%d/16", a, b)
+}
+
+func LinkRename(old, new string) error {
+	link, err := netlink.LinkByName(old)
+	if err != nil {
+		return err
+	}
+	return netlink.LinkSetName(link, new)
+}
+
+func LinkAddAddr(linkName, IP string) error {
+	link, err := netlink.LinkByName(linkName)
+	if err != nil {
+		return err
+	}
+	addr, err := netlink.ParseAddr(IP)
+	if err != nil {
+		return errors.Wrapf(err, "can not parse %s", IP)
+	}
+	return netlink.AddrAdd(link, addr)
+}
+
+func LinkSetup(linkName string) error {
+	link, err := netlink.LinkByName(linkName)
+	if err != nil {
+		return err
+	}
+	return netlink.LinkSetUp(link)
+}
+
+func LinkAddGateway(linkName, gatewayIP string) error {
+	link, err := netlink.LinkByName(linkName)
+	if err != nil {
+		return err
+	}
+	newRoute := &netlink.Route{
+		LinkIndex:  link.Attrs().Index,
+		Scope:      netlink.SCOPE_UNIVERSE,
+		Gw:         net.ParseIP(gatewayIP),
+	}
+	return netlink.RouteAdd(newRoute)
+}
+
+
+func randomHash() string {
+	randBuffer := make([]byte, 32)
+	rand.Read(randBuffer)
+	sha := sha256.New().Sum(randBuffer)
+	return fmt.Sprintf("%x", sha)[:64]
 }
