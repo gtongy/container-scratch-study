@@ -36,13 +36,21 @@ func run() {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
 	}
+	if err := SetupBridge("gtongy-bridge"); err != nil {
+		return
+	}
+	deleteNetwork, err := SetupNetwork("gtongy-bridge")
+	if err != nil {
+		return
+	}
+	defer deleteNetwork()
 	must(cmd.Run())
 }
 
 func child() {
 	fmt.Printf("Running %v \n", os.Args[2:])
 
-	cg()
+	// cg()
 
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
 	cmd.Stdin = os.Stdin
@@ -54,7 +62,6 @@ func child() {
 	must(syscall.Mount("proc", "proc", "proc", 0, ""))
 	must(cmd.Run())
 	must(syscall.Unmount("proc", 0))
-	SetupNetwork("gtongy-bridge")
 }
 
 func cg() {

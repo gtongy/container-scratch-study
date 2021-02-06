@@ -21,6 +21,38 @@ var (
 
 type Unsetter func() error
 
+func SetupBridge(name string) error {
+	bridge, err := netlink.LinkByName(name)
+	if err != nil {
+		linkAttrs := netlink.NewLinkAttrs()
+		linkAttrs.Name = name
+		bridge = &netlink.Bridge{
+			LinkAttrs: linkAttrs,
+		}
+		if err := netlink.LinkAdd(bridge); err != nil {
+			return err
+		}
+	}
+	addrList, err := netlink.AddrList(bridge, 0)
+	if err != nil {
+		return err
+	}
+	if len(addrList) < 1 {
+		IP := "172.30.0.1/16"
+		addr, err := netlink.ParseAddr(IP)
+		if err != nil {
+			return err
+		}
+		if err := netlink.AddrAdd(bridge, addr); err != nil {
+			return err
+		}
+	}
+	if err := netlink.LinkSetUp(bridge); err != nil {
+		return err
+	}
+	return nil
+}
+
 func SetupNetwork(bridge string) (error, error){
 	nsMountTarget := filepath.Join("/gtongy/netns", digest)
 	vethName := fmt.Sprintf("veth%.7s", digest)
