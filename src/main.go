@@ -5,9 +5,6 @@ package main
 import (
 	"crypto/sha256"
 	"fmt"
-	"github.com/pkg/errors"
-	"github.com/vishvananda/netlink"
-	"golang.org/x/sys/unix"
 	"io/ioutil"
 	"math/rand"
 	"net"
@@ -16,6 +13,10 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+
+	"github.com/pkg/errors"
+	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 var (
@@ -36,14 +37,6 @@ func main() {
 
 func run() {
 	fmt.Printf("Running %v \n", os.Args[2:])
-	if err := SetupBridge("gtongy-bridge"); err != nil {
-		return
-	}
-	_, err := SetupNetwork("gtongy-bridge")
-	if err != nil {
-		fmt.Println("%v", err)
-		return
-	}
 	cmd := exec.Command("/proc/self/exe", append([]string{"child"}, os.Args[2:]...)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -56,6 +49,15 @@ func run() {
 
 func child() {
 	fmt.Printf("Running %v \n", os.Args[2:])
+	if err := SetupBridge("gtongy-bridge"); err != nil {
+		return
+	}
+	unmountNetwork, err := SetupNetwork("gtongy-bridge")
+	if err != nil {
+		fmt.Println("%v", err)
+		return
+	}
+	defer unmountNetwork()
 	cg()
 
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
@@ -170,7 +172,7 @@ func SetupNetwork(bridge string) (Unmounter, error) {
 	}
 	defer unset()
 
-	ctrEthName := "gtongy0"
+	ctrEthName := "eth0"
 	ctrEthIPAddr := GetIP()
 	if err := LinkRename(peerName, ctrEthName); err != nil {
 		return unmount, err
@@ -221,7 +223,7 @@ func LinkSetMaster(linkName, masterName string) error {
 
 // MountNetworkNamespace mount network to last lifetime.
 func MountNetworkNamespace(nsTarget string) (Unmounter, error) {
-	_, err := os.OpenFile(nsTarget, os.O_WRONLY|os.O_CREATE, 0644)
+	_, err := os.OpenFile(nsTarget, syscall.O_RDONLY|syscall.O_CREAT|syscall.O_EXCL, 0644)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create target file")
 	}
