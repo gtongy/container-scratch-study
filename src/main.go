@@ -111,6 +111,7 @@ func Mount(mountOpts ...MountOption) (Unmounter, error) {
 			return unmounter, errors.Wrapf(err, "unable to mount %s to %s", p.Source, p.Target)
 		}
 	}
+	return unmounter, nil
 }
 
 func SetupBridge(name string) error {
@@ -219,7 +220,7 @@ func LinkSetMaster(linkName, masterName string) error {
 }
 
 // MountNetworkNamespace mount network to last lifetime.
-func MountNetworkNamespace(nsTarget string) (error, error) {
+func MountNetworkNamespace(nsTarget string) (Unmounter, error) {
 	_, err := os.OpenFile(nsTarget, syscall.O_RDONLY|syscall.O_CREAT|syscall.O_EXCL, 0644)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create target file")
