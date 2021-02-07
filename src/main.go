@@ -36,6 +36,14 @@ func main() {
 
 func run() {
 	fmt.Printf("Running %v \n", os.Args[2:])
+	if err := SetupBridge("gtongy-bridge"); err != nil {
+		return
+	}
+	_, err := SetupNetwork("gtongy-bridge")
+	if err != nil {
+		fmt.Println("%v", err)
+		return
+	}
 	cmd := exec.Command("/proc/self/exe", append([]string{"child"}, os.Args[2:]...)...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
@@ -48,13 +56,6 @@ func run() {
 
 func child() {
 	fmt.Printf("Running %v \n", os.Args[2:])
-	if err := SetupBridge("gtongy-bridge"); err != nil {
-		return
-	}
-	_, err := SetupNetwork("gtongy-bridge")
-	if err != nil {
-		return
-	}
 	cg()
 
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
@@ -196,7 +197,7 @@ func SetupVirtualEthernet(name, peer string) error {
 		LinkAttrs: linkAttrs,
 		PeerName:  peer,
 	}
-	if err := netlink.LinkAdd(vth); err != nil {
+	if err := netlink.LinkAdd(vth); err != nil && err.Error() != "file exists" {
 		return err
 	}
 	return netlink.LinkSetUp(vth)
@@ -220,7 +221,7 @@ func LinkSetMaster(linkName, masterName string) error {
 
 // MountNetworkNamespace mount network to last lifetime.
 func MountNetworkNamespace(nsTarget string) (Unmounter, error) {
-	_, err := os.OpenFile(nsTarget, syscall.O_RDONLY|syscall.O_CREAT|syscall.O_EXCL, 0644)
+	_, err := os.OpenFile(nsTarget, os.O_WRONLY|os.O_CREATE, 0644)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create target file")
 	}
