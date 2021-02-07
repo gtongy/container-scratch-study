@@ -146,7 +146,7 @@ func SetupBridge(name string) error {
 	return nil
 }
 
-func SetupNetwork(bridge string) (error, error) {
+func SetupNetwork(bridge string) (Unmounter, error) {
 	nsMountTarget := filepath.Join("/gtongy/netns", digest)
 	vethName := fmt.Sprintf("veth%.7s", digest)
 	peerName := fmt.Sprintf("P%s", vethName)
