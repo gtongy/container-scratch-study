@@ -43,6 +43,11 @@ func run() {
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
 	}
+	must(cmd.Run())
+}
+
+func child() {
+	fmt.Printf("Running %v \n", os.Args[2:])
 	if err := SetupBridge("gtongy-bridge"); err != nil {
 		return
 	}
@@ -50,12 +55,6 @@ func run() {
 	if err != nil {
 		return
 	}
-	must(cmd.Run())
-}
-
-func child() {
-	fmt.Printf("Running %v \n", os.Args[2:])
-
 	cg()
 
 	cmd := exec.Command(os.Args[2], os.Args[3:]...)
@@ -147,7 +146,7 @@ func SetupBridge(name string) error {
 }
 
 func SetupNetwork(bridge string) (Unmounter, error) {
-	nsMountTarget := filepath.Join("/gtongy/netns", digest)
+	nsMountTarget := filepath.Join(netnsPath, digest)
 	vethName := fmt.Sprintf("veth%.7s", digest)
 	peerName := fmt.Sprintf("P%s", vethName)
 	if err := SetupVirtualEthernet(vethName, peerName); err != nil {
