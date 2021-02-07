@@ -7,20 +7,20 @@ import (
 	"fmt"
 	"github.com/pkg/errors"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 	"io/ioutil"
+	"math/rand"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
-	"golang.org/x/sys/unix"
-	"math/rand"
 )
 
 var (
 	netnsPath = "/gtongy/netns"
-	digest = randomHash()
+	digest    = randomHash()
 )
 
 func main() {
@@ -87,6 +87,31 @@ func must(err error) {
 }
 
 type Unsetter func() error
+type Unmounter func() error
+type MountOption struct {
+	Source string
+	Target string
+	Type   string
+	Flag   uintptr
+	Option string
+}
+
+func Mount(mountOpts ...MountOption) (Unmounter, error) {
+	unmounter := func() error {
+		for _, p := range mountOpts {
+			if err := syscall.Unmount(p.Target, 0); err != nil {
+				return errors.Wrapf(err, "unable to umount %q", p.Target)
+			}
+		}
+		return nil
+	}
+
+	for _, p := range mountOpts {
+		if err := syscall.Mount(p.Source, p.Target, p.Type, p.Flag, p.Option); err != nil {
+			return unmounter, errors.Wrapf(err, "unable to mount %s to %s", p.Source, p.Target)
+		}
+	}
+}
 
 func SetupBridge(name string) error {
 	bridge, err := netlink.LinkByName(name)
@@ -207,13 +232,20 @@ func MountNetworkNamespace(nsTarget string) (error, error) {
 	if err := syscall.Unshare(syscall.CLONE_NEWNET); err != nil {
 		return nil, errors.Wrap(err, "unshare syscall failed")
 	}
-	// TODO: mount file
-	if err := unix.Setns(int(file.Fd()), syscall.CLONE_NEWNET); err != nil {
-		// TODO: return unmount
-		return nil, errors.Wrap(err, "setns syscall failed")
+	mountPoint := MountOption{
+		Source: "/proc/self/ns/net",
+		Target: nsTarget,
+		Type:   "bind",
+		Flag:   syscall.MS_BIND,
 	}
-	// TODO: return unmount
-	return nil, err
+	unmount, err := Mount(mountPoint)
+	if err != nil {
+		return unmount, err
+	}
+	if err := unix.Setns(int(file.Fd()), syscall.CLONE_NEWNET); err != nil {
+		return unmount, errors.Wrap(err, "setns syscall failed")
+	}
+	return unmount, err
 }
 
 func LinkSetNsByFile(filename, linkName string) error {
